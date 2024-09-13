@@ -19,6 +19,8 @@
 #include <vector>
 #include <iostream>
 #include <Eigen/Dense>
+#include <fstream>
+#include <string>
 
 #ifdef _MSC_VER
 #include <windows.h>
@@ -1120,6 +1122,16 @@ int CudaCalcMeldForceKernel::calcSizeGMMData(const MeldForce &force)
     return total;
 }
 
+std::string LoadHeaderFile(const std::string& filename) {
+        std::ifstream file(filename);
+        if (!file.is_open()) {
+            std::cerr << "Error: Could not open file " << filename << std::endl;
+            return "";
+        }
+        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        return content;
+}
+
 void CudaCalcMeldForceKernel::validateAndUpload()
 {
     if (numRDCRestraints > 0)
@@ -1257,7 +1269,49 @@ void CudaCalcMeldForceKernel::initialize(const System &system, const MeldForce &
     replacements["NCOLLTHREADS"] = cu.intToString(threadsPerCollection);
     replacements["GROUPS_PER_THREAD"] = cu.intToString(groupsPerThread);
 
-    CUmodule module = cu.createModule(cu.replaceStrings(CudaMeldKernelSources::vectorOps + CudaMeldKernelSources::computeMeld, replacements), defines);
+    std::string cubcubHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/cub.cuh");
+    std::string cubblock_reduceHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/block/block_reduce.cuh");
+    std::string cubblock_reduce_rakingHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/block/specializations/block_reduce_raking.cuh");
+    std::string cubblock_reduce_raking_commutative_onlyHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/block/specializations/block_reduce_raking_commutative_only.cuh");
+    std::string cubblock_reduce_warp_reductionsHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/block/specializations/block_reduce_warp_reductions.cuh");
+    std::string cubconfigHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/config.cuh");
+    std::string cubutil_ptxHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/util_ptx.cuh");
+    std::string cubutil_typeHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/util_type.cuh");
+    std::string cubthread_operatorsHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/thread/thread_operators.cuh");
+    std::string cubutil_cpp_dialectHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/util_cpp_dialect.cuh");
+    std::string cubuninitialized_copyHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/detail/uninitialized_copy.cuh");
+    std::string cubutil_archHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/util_arch.cuh");
+    std::string cubutil_compilerHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/util_compiler.cuh");
+    std::string cubutil_deprecatedHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/util_deprecated.cuh");
+    std::string cubutil_macroHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/util_macro.cuh");
+    std::string cubutil_namespaceHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/util_namespace.cuh");
+    std::string cubutil_debugHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/util_debug.cuh");
+    std::string cubwarp_reduceHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/warp/warp_reduce.cuh");
+    std::string cubthread_reduceHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/thread/thread_reduce.cuh");
+    std::string cubtype_traitsHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/detail/type_traits.cuh");
+    std::string cubblock_raking_layoutHeaderContents = LoadHeaderFile("/scratch/mselensk/.conda-envs/meld-from-liwei12/include/cub/block/block_raking_layout.cuh");
+    
+    CUmodule module = cu.createModule(cu.replaceStrings(cubconfigHeaderContents
+                                                    + cubblock_reduceHeaderContents 
+                                                    + cubblock_reduce_rakingHeaderContents
+                                                    + cubblock_reduce_raking_commutative_onlyHeaderContents
+                                                    + cubblock_reduce_warp_reductionsHeaderContents
+                                                    + cubutil_ptxHeaderContents
+                                                    + cubutil_typeHeaderContents
+                                                    + cubthread_operatorsHeaderContents
+                                                    + cubutil_cpp_dialectHeaderContents
+                                                    + cubuninitialized_copyHeaderContents
+                                                    + cubutil_archHeaderContents
+                                                    + cubutil_compilerHeaderContents
+                                                    + cubutil_deprecatedHeaderContents
+                                                    + cubutil_macroHeaderContents
+                                                    + cubutil_namespaceHeaderContents
+                                                    + cubutil_debugHeaderContents
+                                                    + cubwarp_reduceHeaderContents
+                                                    + cubthread_reduceHeaderContents
+                                                    + cubtype_traitsHeaderContents
+                                                    + cubblock_raking_layoutHeaderContents
+						    + CudaMeldKernelSources::vectorOps + CudaMeldKernelSources::computeMeld, replacements), defines);
     computeRDCRestKernel = cu.getKernel(module, "computeRDCRest");
     computeDistRestKernel = cu.getKernel(module, "computeDistRest");
     computeHyperbolicDistRestKernel = cu.getKernel(module, "computeHyperbolicDistRest");
